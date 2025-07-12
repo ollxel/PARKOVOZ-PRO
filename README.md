@@ -35,7 +35,7 @@ NVIDIA GPU (рекомендуется для лучшей производит�
 Клонируйте репозиторий:
 
 bash
-git clone https://github.com/yourusername/parkovoz-pro.git
+git clone https://github.com/ollxel/PARKOVOZ-PRO.git
 cd parkovoz-pro
 Установите зависимости Python:
 
