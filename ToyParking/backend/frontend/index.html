@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Parking Map Editor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        /* Все стили остаются без изменений */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #f0f0f0;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .editor-panel {
+            width: 300px;
+            background: white;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        .toolbar {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .toolbar h2 {
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .tool-group {
+            margin-bottom: 20px;
+        }
+        
+        .tool-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .tool-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .tool-btn:hover {
+            background: #0056b3;
+        }
+        
+        .tool-btn.active {
+            background: #28a745;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            padding: 20px;
+            background: white;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .canvas-2d {
+            border: 2px solid #ddd;
+            cursor: crosshair;
+            background: #f8f9fa;
+        }
+        
+        .view-container {
+            flex: 1;
+            position: relative;
+            background: #87CEEB;
+        }
+        
+        .view-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .view-toggle:hover {
+            background: rgba(0,0,0,0.9);
+        }
+        
+        #canvas3d {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .instructions {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .instructions ul {
+            margin-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 5px;
+        }
+
+        .grid-input-mode {
+            display: grid;
+            grid-template-columns: repeat(15, 1fr);
+            gap: 2px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            padding: 5px;
+            background: #fdfdfd;
+            max-height: 250px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.2;
+        }
+
+        .grid-cell {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f0f0f0;
+            border: 1px solid #eee;
+            cursor: pointer;
+            font-weight: bold;
+            color: #555;
+            user-select: none;
+        }
+
+        .grid-cell.parking.free {
+            background-color: #e0ffe0;
+            color: #006400;
+        }
+
+        .grid-cell.parking.occupied {
+            background-color: #ffe0e0;
+            color: #8B0000;
+        }
+
+        .grid-cell.non-parking {
+            background-color: #ddd;
+            color: #777;
+            cursor: default;
+        }
+        
+        #connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 10000;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="connection-status">Connecting...</div>
+    
+    <div class="container">
+        <div class="editor-panel">
+            <div class="toolbar">
+                <h2>Редактор парковки</h2>
+
+                <div class="tool-group">
+                    <label>Инструменты:</label>
+                    <button class="tool-btn active" onclick="setTool('parking')">Парковочное место</button>
+                    <button class="tool-btn" onclick="setTool('road')">Дорога</button>
+                    <button class="tool-btn" onclick="setTool('building')">Здание</button>
+                    <button class="tool-btn" onclick="setTool('tree')">Дерево</button>
+                    <button class="tool-btn" onclick="setTool('erase')">Ластик</button>
+                </div>
+
+                <div class="tool-group">
+                    <label>Файлы:</label>
+                    <button class="tool-btn" onclick="importParkingMap()">Импорт JSON</button>
+                    <button class="tool-btn" onclick="exportParkingMap()">Экспорт JSON</button>
+                    <input type="file" id="fileInput" accept=".json" style="display:none">
+                    <button class="tool-btn" onclick="loadInitialMap()">Загрузить parking_map.json</button>
+                </div>
+
+                <div class="tool-group">
+                    <label>Состояние мест (0-свободно, 1-занято):</label>
+                    <button class="tool-btn" id="toggleInputModeBtn" onclick="toggleInputMode()">Переключить на грид ввод</button>
+
+                    <div id="jsonInputMode" style="display: block;">
+                        <textarea id="parkingStateInput" rows="10" style="width: 100%; margin-bottom: 10px; font-size: 12px; font-family: monospace;"></textarea>
+                    </div>
+
+                    <div id="gridInputMode" class="grid-input-mode" style="display: none;"></div>
+                    
+                    <!-- Кнопка скрыта, так как обновление автоматическое -->
+                    <button class="tool-btn" onclick="applyParkingState()" id="apply-state-btn" style="display: none;">
+                        Применить состояние
+                    </button>
+                </div>
+
+                <div class="tool-group">
+                    <button class="tool-btn" onclick="clearCanvas()">Очистить всё</button>
+                    <button class="tool-btn" onclick="generateRandom()">Случайная парковка</button>
+                </div>
+            </div>
+
+            <div class="canvas-container">
+                <canvas id="canvas2d" class="canvas-2d" width="260" height="300"></canvas>
+            </div>
+
+            <div class="instructions">
+                <h3>Инструкции:</h3>
+                <ul>
+                    <li>Выберите инструмент</li>
+                    <li>Кликайте по области для размещения</li>
+                    <li>Изменения автоматически отображаются в 3D</li>
+                    <li>Используйте мышь для навигации в 3D</li>
+                    <li>Файл parking_map.json автоматически загружается при запуске</li>
+                    <li>Состояние парковки обновляется автоматически</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="view-container">
+            <button class="view-toggle" onclick="toggleView()">Переключить вид</button>
+            <div id="canvas3d"></div>
+        </div>
+    </div>
+
+    <script>
+        // 2D Editor Variables
+        let currentTool = 'parking';
+        let canvas2d, ctx2d;
+        let parkingData = [];
+        let gridSize = 20;
+        let parkingCounter = 1;
+        let fileName = "parking_map";
+
+        // 3D Scene Variables
+        let scene, camera, renderer, controls;
+        let parkingObjects = [];
+
+        // Input mode variables
+        let currentInputMode = 'json';
+        const maxGridInputRows = 15;
+        const maxGridInputCols = 15;
+
+        // WebSocket connection
+        let ws = null;
+        let isConnected = false;
+
+        // Функция загрузки начальной карты
+        function loadInitialMap() {
+            fetch('parking_map.json')
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            throw new Error('Файл parking_map.json не найден');
+                        }
+                        throw new Error(`Ошибка HTTP: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    fileName = data.fileName || "parking_map";
+                    parkingData = data.mapData;
+                    
+                    // Пересчитываем максимальный ID
+                    let maxId = 0;
+                    parkingData.forEach(row => {
+                        row.forEach(cell => {
+                            if (cell && cell.type === 'parking' && cell.id > maxId) {
+                                maxId = cell.id;
+                            }
+                        });
+                    });
+                    parkingCounter = maxId + 1;
+                    
+                    draw2D();
+                    update3D();
+                    syncDataToUI();
+                    console.log("Начальная карта успешно загружена!");
+                })
+                .catch(error => {
+                    console.error("Ошибка загрузки:", error);
+                    generateRandom();
+                });
+        }
+
+        // Функция подключения к WebSocket
+        function connectWebSocket() {
+            ws = new WebSocket("ws://localhost:9000");
+            
+            ws.onopen = () => {
+                isConnected = true;
+                console.log("WebSocket connected");
+                document.getElementById("connection-status").textContent = "Connected";
+                document.getElementById("connection-status").style.color = "green";
+                
+                // Запрашиваем данные сразу после подключения
+                ws.send(JSON.stringify({ type: "request_data" }));
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if(data.type === "parking_data") {
+                        // Автоматически применяем состояние без уведомлений
+                        applyParkingStateSilently(data.data);
+                    }
+                } catch (e) {
+                    console.error("Ошибка обработки сообщения:", e);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error("WebSocket error:", error);
+            };
+            
+            ws.onclose = () => {
+                isConnected = false;
+                console.log("WebSocket disconnected");
+                document.getElementById("connection-status").textContent = "Disconnected";
+                document.getElementById("connection-status").style.color = "red";
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        // Автоматическое применение состояния без уведомлений
+        function applyParkingStateSilently(linearStates) {
+            let index = 0;
+            
+            // Обновляем состояние парковочных мест
+            for (let i = 0; i < parkingData.length; i++) {
+                for (let j = 0; j < parkingData[i].length; j++) {
+                    const cell = parkingData[i][j];
+                    if (cell && typeof cell !== 'string' && cell.type === 'parking') {
+                        if (index < linearStates.length) {
+                            cell.occupied = linearStates[index] === 1;
+                            index++;
+                        }
+                    }
+                }
+            }
+            
+            // Обновляем интерфейс
+            draw2D();
+            update3D();
+            syncDataToUI();
+        }
+
+        // Ручное применение состояния (без alert)
+        function applyParkingState() {
+            let stateArrayToApply = [];
+
+            if (currentInputMode === 'json') {
+                const textarea = document.getElementById('parkingStateInput');
+                const inputString = textarea.value.trim();
+
+                if (!inputString) {
+                    return;
+                }
+
+                try {
+                    stateArrayToApply = JSON.parse(inputString);
+
+                    if (!Array.isArray(stateArrayToApply) || !stateArrayToApply.every(row => Array.isArray(row))) {
+                         return;
+                    }
+                } catch (error) {
+                    console.error("Ошибка при обработке входных данных:", error);
+                    return;
+                }
+            } else {
+                const gridContainer = document.getElementById('gridInputMode');
+                const rows = gridContainer.children.length / maxGridInputCols;
+
+                for (let i = 0; i < rows; i++) {
+                    stateArrayToApply[i] = [];
+                    for (let j = 0; j < maxGridInputCols; j++) {
+                        const cellDiv = gridContainer.children[i * maxGridInputCols + j];
+                        if (cellDiv && cellDiv.classList.contains('parking')) {
+                            stateArrayToApply[i][j] = parseInt(cellDiv.textContent);
+                        } else {
+                            stateArrayToApply[i][j] = null;
+                        }
+                    }
+                }
+            }
+
+            // Применяем изменения
+            applyParkingStateData(stateArrayToApply);
+        }
+
+        // Общая функция применения состояния
+        function applyParkingStateData(stateArrayToApply) {
+            const maxRowsToProcess = Math.min(stateArrayToApply.length, parkingData.length);
+
+            for (let i = 0; i < maxRowsToProcess; i++) {
+                const currentParkingDataRowLength = parkingData[i] ? parkingData[i].length : 0;
+                const maxColsToProcess = Math.min(stateArrayToApply[i].length, currentParkingDataRowLength);
+                for (let j = 0; j < maxColsToProcess; j++) {
+                    const cell = parkingData[i][j];
+                    const state = stateArrayToApply[i][j];
+
+                    if (cell && typeof cell !== 'string' && cell.type === 'parking') {
+                        if (state === 0) {
+                            cell.occupied = false;
+                        } else if (state === 1) {
+                            cell.occupied = true;
+                        }
+                    }
+                }
+            }
+
+            draw2D();
+            update3D();
+            syncDataToUI();
+        }
+
+        // 2D Editor Functions
+        function init2D() {
+            canvas2d = document.getElementById('canvas2d');
+            ctx2d = canvas2d.getContext('2d');
+
+            canvas2d.addEventListener('click', handleCanvasClick);
+            
+            // Initialize empty grid
+            for (let i = 0; i < 15; i++) {
+                parkingData[i] = [];
+                for (let j = 0; j < 13; j++) {
+                    parkingData[i][j] = null;
+                }
+            }
+
+            draw2D();
+        }
+
+        function handleCanvasClick(event) {
+            const rect = canvas2d.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            const gridX = Math.floor(x / gridSize);
+            const gridY = Math.floor(y / gridSize);
+
+            const maxGridY = parkingData.length;
+            const maxGridX = parkingData.length > 0 ? parkingData[0].length : 0;
+
+            if (gridX >= 0 && gridX < maxGridX && gridY >= 0 && gridY < maxGridY) {
+                if (currentTool === 'erase') {
+                    parkingData[gridY][gridX] = null;
+                } else if (currentTool === 'parking') {
+                    const cell = parkingData[gridY][gridX];
+                    if (cell && typeof cell !== 'string' && cell.type === 'parking') {
+                        cell.occupied = !cell.occupied;
+                    } else {
+                        parkingData[gridY][gridX] = {
+                            type: 'parking',
+                            id: parkingCounter++,
+                            occupied: false
+                        };
+                    }
+                } else {
+                    parkingData[gridY][gridX] = currentTool;
+                }
+                draw2D();
+                update3D();
+                syncDataToUI();
+            }
+        }
+
+        function draw2D() {
+            ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
+
+            // Draw grid
+            ctx2d.strokeStyle = '#ddd';
+            ctx2d.lineWidth = 1;
+            for (let i = 0; i <= (parkingData.length > 0 ? parkingData[0].length : 13); i++) {
+                 ctx2d.beginPath();
+                 ctx2d.moveTo(i * gridSize, 0);
+                 ctx2d.lineTo(i * gridSize, canvas2d.height);
+                 ctx2d.stroke();
+             }
+             for (let i = 0; i <= parkingData.length; i++) {
+                 ctx2d.beginPath();
+                 ctx2d.moveTo(0, i * gridSize);
+                 ctx2d.lineTo(canvas2d.width, i * gridSize);
+                 ctx2d.stroke();
+             }
+
+            // Draw objects
+            for (let i = 0; i < parkingData.length; i++) {
+                for (let j = 0; j < parkingData[i].length; j++) {
+                    const cell = parkingData[i][j];
+                    if (cell) {
+                        let type = cell;
+                        let isOccupied = false;
+                        let parkingId = null;
+
+                        if (typeof cell !== 'string') {
+                            type = cell.type;
+                            isOccupied = cell.occupied;
+                            parkingId = cell.id;
+                        }
+
+                        switch (type) {
+                            case 'parking':
+                                ctx2d.fillStyle = isOccupied ? '#FF5722' : '#4CAF50';
+                                break;
+                            case 'road':
+                                ctx2d.fillStyle = '#757575';
+                                break;
+                            case 'building':
+                                ctx2d.fillStyle = '#FF9800';
+                                break;
+                            case 'tree':
+                                ctx2d.fillStyle = '#2E7D32';
+                                break;
+                            default:
+                                ctx2d.fillStyle = '#f8f9fa';
+                        }
+
+                        ctx2d.fillRect(j * gridSize + 1, i * gridSize + 1, gridSize - 2, gridSize - 2);
+
+                        if (type === 'parking' && parkingId !== null) {
+                            ctx2d.fillStyle = 'black';
+                            ctx2d.font = '8px Arial';
+                            ctx2d.textAlign = 'center';
+                            ctx2d.fillText(
+                                `P${parkingId}`,
+                                j * gridSize + gridSize/2,
+                                i * gridSize + gridSize/2 + 3
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        function setTool(tool) {
+            currentTool = tool;
+            const buttons = document.querySelectorAll('.tool-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        function clearCanvas() {
+            const maxRows = parkingData.length;
+            const maxCols = parkingData.length > 0 ? parkingData[0].length : 0;
+
+            for (let i = 0; i < maxRows; i++) {
+                for (let j = 0; j < maxCols; j++) {
+                    parkingData[i][j] = null;
+                }
+            }
+            parkingCounter = 1;
+            draw2D();
+            update3D();
+            syncDataToUI();
+        }
+
+        function generateRandom() {
+            const numRows = 15;
+            const numCols = 13;
+
+            parkingData = [];
+            for (let i = 0; i < numRows; i++) {
+                parkingData[i] = [];
+                for (let j = 0; j < numCols; j++) {
+                    parkingData[i][j] = null;
+                }
+            }
+            parkingCounter = 1;
+
+            // Create main road
+            for (let i = 0; i < numRows; i++) {
+                if (i < parkingData.length && 6 < parkingData[i].length) parkingData[i][6] = 'road';
+            }
+
+            // Create horizontal roads
+            for (let j = 0; j < numCols; j++) {
+                if (3 < parkingData.length && j < parkingData[3].length) parkingData[3][j] = 'road';
+                if (11 < parkingData.length && j < parkingData[11].length) parkingData[11][j] = 'road';
+            }
+
+            for (let i = 0; i < numRows; i++) {
+                for (let j = 0; j < numCols; j++) {
+                    if (i < parkingData.length && j < parkingData[i].length && parkingData[i][j] === null) {
+                        const rand = Math.random();
+                        if (rand < 0.6) {
+                            parkingData[i][j] = {
+                                type: 'parking',
+                                id: parkingCounter++,
+                                occupied: Math.random() < 0.3
+                            };
+                        } else if (rand < 0.7) {
+                            parkingData[i][j] = 'building';
+                        } else if (rand < 0.8) {
+                            parkingData[i][j] = 'tree';
+                        }
+                    }
+                }
+            }
+
+            draw2D();
+            update3D();
+            syncDataToUI();
+        }
+
+        function toggleInputMode() {
+            const jsonModeDiv = document.getElementById('jsonInputMode');
+            const gridModeDiv = document.getElementById('gridInputMode');
+            const toggleBtn = document.getElementById('toggleInputModeBtn');
+
+            if (currentInputMode === 'json') {
+                currentInputMode = 'grid';
+                jsonModeDiv.style.display = 'none';
+                gridModeDiv.style.display = 'grid'; 
+                toggleBtn.textContent = 'Переключить на JSON ввод';
+            } else {
+                currentInputMode = 'json';
+                jsonModeDiv.style.display = 'block';
+                gridModeDiv.style.display = 'none';
+                toggleBtn.textContent = 'Переключить на грид ввод';
+            }
+            syncDataToUI();
+        }
+
+        function syncDataToUI() {
+            const jsonTextarea = document.getElementById('parkingStateInput');
+            
+            const stateArrayForJson = [];
+            for (let i = 0; i < parkingData.length; i++) {
+                const row = [];
+                for (let j = 0; j < parkingData[i].length; j++) {
+                    const cell = parkingData[i][j];
+                    if (cell && cell.type === 'parking') {
+                        row.push(cell.occupied ? 1 : 0);
+                    } else {
+                        row.push(null);
+                    }
+                }
+                stateArrayForJson.push(row);
+            }
+            jsonTextarea.value = JSON.stringify(stateArrayForJson, null, 2);
+
+            createOrUpdateGridInput();
+        }
+
+        function createOrUpdateGridInput() {
+            const gridContainer = document.getElementById('gridInputMode');
+            gridContainer.innerHTML = '';
+
+            for (let i = 0; i < maxGridInputRows; i++) {
+                for (let j = 0; j < maxGridInputCols; j++) {
+                    let cellState = null;
+                    let isParkingSpot = false;
+
+                    if (i < parkingData.length && j < parkingData[i].length) {
+                        const cell = parkingData[i][j];
+                        if (cell && cell.type === 'parking') {
+                            isParkingSpot = true;
+                            cellState = cell.occupied ? 1 : 0;
+                        }
+                    }
+                    
+                    const cellDiv = document.createElement('div');
+                    cellDiv.classList.add('grid-cell');
+                    cellDiv.dataset.row = i;
+                    cellDiv.dataset.col = j;
+
+                    if (isParkingSpot) {
+                        cellDiv.classList.add('parking');
+                        cellDiv.textContent = cellState;
+                        if (cellState === 0) {
+                            cellDiv.classList.add('free');
+                        } else {
+                            cellDiv.classList.add('occupied');
+                        }
+                        cellDiv.addEventListener('click', toggleGridCellState);
+                    } else {
+                        cellDiv.classList.add('non-parking');
+                        cellDiv.textContent = '-';
+                    }
+                    gridContainer.appendChild(cellDiv);
+                }
+            }
+        }
+
+        function toggleGridCellState(event) {
+            const cellDiv = event.target;
+            
+            if (!cellDiv.classList.contains('parking')) {
+                return;
+            }
+
+            let currentState = parseInt(cellDiv.textContent);
+            let newState = (currentState === 0) ? 1 : 0;
+            
+            cellDiv.textContent = newState;
+            cellDiv.classList.remove('free', 'occupied');
+            if (newState === 0) {
+                cellDiv.classList.add('free');
+            } else {
+                cellDiv.classList.add('occupied');
+            }
+            updateJsonTextareaFromGrid();
+        }
+
+        function updateJsonTextareaFromGrid() {
+            const jsonTextarea = document.getElementById('parkingStateInput');
+            const gridCells = document.querySelectorAll('#gridInputMode .grid-cell');
+            const tempStateArray = Array(maxGridInputRows).fill(null).map(() => Array(maxGridInputCols).fill(null));
+
+            gridCells.forEach(cellDiv => {
+                const row = parseInt(cellDiv.dataset.row);
+                const col = parseInt(cellDiv.dataset.col);
+                if (cellDiv.classList.contains('parking')) {
+                    tempStateArray[row][col] = parseInt(cellDiv.textContent);
+                } else {
+                    tempStateArray[row][col] = null;
+                }
+            });
+            jsonTextarea.value = JSON.stringify(tempStateArray, null, 2);
+        }
+
+        // 3D Scene Functions
+        function init3D() {
+            const container = document.getElementById('canvas3d');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+
+            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(15, 25, 15);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2.2;
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+
+            const groundGeometry = new THREE.PlaneGeometry(50, 50);
+            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x90EE90 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+
+        function update3D() {
+            parkingObjects.forEach(obj => {
+                 if (obj && obj.parent) {
+                    scene.remove(obj);
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material && obj.material.dispose) {
+                        if (Array.isArray(obj.material)) {
+                             obj.material.forEach(mat => mat.dispose());
+                        } else {
+                             obj.material.dispose();
+                        }
+                    }
+                 }
+            });
+            parkingObjects = [];
+
+            const maxRows = parkingData.length;
+            const maxCols = parkingData.length > 0 ? parkingData[0].length : 0;
+
+            const mapWidthUnits = maxCols * (gridSize / 10);
+            const mapHeightUnits = maxRows * (gridSize / 10);
+
+            for (let i = 0; i < parkingData.length; i++) {
+                for (let j = 0; j < parkingData[i].length; j++) {
+                    const cell = parkingData[i][j];
+                     if (cell) {
+                        const x = (j - maxCols / 2 + 0.5) * (gridSize / 10);
+                        const z = (i - maxRows / 2 + 0.5) * (gridSize / 10);
+
+                        let object;
+                        if (typeof cell === 'string') {
+                            switch (cell) {
+                                case 'road':
+                                    object = createRoad(x, z);
+                                    break;
+                                case 'building':
+                                    object = createBuilding(x, z);
+                                    break;
+                                case 'tree':
+                                    object = createTree(x, z);
+                                    break;
+                            }
+                        } else if (cell.type === 'parking') {
+                            object = createParkingSpot(x, z, cell);
+                        }
+
+                        if (object) {
+                            scene.add(object);
+                            parkingObjects.push(object);
+                        }
+                    }
+                }
+            }
+        }
+
+        function createParkingSpot(x, z, spotData) {
+            const group = new THREE.Group();
+            const unitSize = gridSize / 10;
+
+            const geometry = new THREE.BoxGeometry(unitSize * 0.9, unitSize * 0.05, unitSize * 0.9);
+            const material = new THREE.MeshLambertMaterial({ color: 0x666666 });
+            const spot = new THREE.Mesh(geometry, material);
+            spot.position.set(x, unitSize * 0.025, z);
+            group.add(spot);
+
+            const lineGeometry = new THREE.BoxGeometry(unitSize * 0.95, unitSize * 0.06, unitSize * 0.05);
+            const lineMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
+
+            const line1 = new THREE.Mesh(lineGeometry, lineMaterial);
+            line1.position.set(x, unitSize * 0.03, z - unitSize * 0.45);
+            group.add(line1);
+
+            const line2 = new THREE.Mesh(lineGeometry, lineMaterial);
+            line2.position.set(x, unitSize * 0.03, z + unitSize * 0.45);
+            group.add(line2);
+
+            if (spotData.occupied) {
+                const car = createCar(unitSize);
+                car.position.set(x, unitSize * 0.15, z);
+                group.add(car);
+            }
+
+            return group;
+        }
+
+        function createRoad(x, z) {
+             const unitSize = gridSize / 10;
+            const geometry = new THREE.BoxGeometry(unitSize * 0.95, unitSize * 0.04, unitSize * 0.95);
+            const material = new THREE.MeshLambertMaterial({ color: 0x404040 });
+            const road = new THREE.Mesh(geometry, material);
+            road.position.set(x, unitSize * 0.02, z);
+            return road;
+        }
+
+        function createBuilding(x, z) {
+             const unitSize = gridSize / 10;
+            const height = unitSize * (2 + Math.random() * 3);
+            const geometry = new THREE.BoxGeometry(unitSize * 0.8, height, unitSize * 0.8);
+            const material = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const building = new THREE.Mesh(geometry, material);
+            building.position.set(x, height / 2, z);
+            building.castShadow = true;
+            return building;
+        }
+
+        function createTree(x, z) {
+             const unitSize = gridSize / 10;
+            const group = new THREE.Group();
+
+            const trunkHeight = unitSize * 1;
+            const trunkGeometry = new THREE.CylinderGeometry(unitSize * 0.05, unitSize * 0.075, trunkHeight);
+            const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.set(x, trunkHeight / 2, z);
+            group.add(trunk);
+
+            const foliageRadius = unitSize * 0.4;
+            const foliageGeometry = new THREE.SphereGeometry(foliageRadius);
+            const foliageMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+            const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+            foliage.position.set(x, trunkHeight + foliageRadius * 0.7, z);
+            foliage.castShadow = true;
+            group.add(foliage);
+
+            return group;
+        }
+
+        function createCar(unitSize) {
+            const group = new THREE.Group();
+
+            const bodyGeometry = new THREE.BoxGeometry(unitSize * 0.6, unitSize * 0.2, unitSize * 1.0);
+            const bodyMaterial = new THREE.MeshLambertMaterial({ color: Math.random() > 0.5 ? 0x3498db : 0xe74c3c });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = unitSize * 0.1;
+            group.add(body);
+            
+            const topGeometry = new THREE.BoxGeometry(unitSize * 0.4, unitSize * 0.15, unitSize * 0.6);
+            const top = new THREE.Mesh(topGeometry, bodyMaterial);
+            top.position.set(0, unitSize * 0.25, unitSize * 0.1);
+            group.add(top);
+            
+            const wheelGeometry = new THREE.CylinderGeometry(unitSize * 0.075, unitSize * 0.075, unitSize * 0.1, 16);
+            wheelGeometry.rotateZ(Math.PI/2);
+            const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            
+            const positions = [
+                [-unitSize * 0.3, unitSize * 0.05, -unitSize * 0.4], [unitSize * 0.3, unitSize * 0.05, -unitSize * 0.4],
+                [-unitSize * 0.3, unitSize * 0.05, unitSize * 0.4], [unitSize * 0.3, unitSize * 0.05, unitSize * 0.4]
+            ];
+            
+            positions.forEach(pos => {
+                const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                wheel.position.set(...pos);
+                group.add(wheel);
+            });
+            
+            return group;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        function onWindowResize() {
+            const container = document.getElementById('canvas3d');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+        
+        function toggleView() {
+            const positions = [
+                { x: 15, y: 25, z: 15 },
+                { x: 0, y: 30, z: 0 },
+                { x: 25, y: 15, z: 0 },
+                { x: 0, y: 15, z: 25 }
+            ];
+            
+            const currentPos = camera.position;
+            let nextIndex = 0;
+            
+            for (let i = 0; i < positions.length; i++) {
+                const pos = positions[i];
+                if (Math.abs(currentPos.x - pos.x) < 1 && 
+                    Math.abs(currentPos.y - pos.y) < 1 && 
+                    Math.abs(currentPos.z - pos.z) < 1) {
+                    nextIndex = (i + 1) % positions.length;
+                    break;
+                }
+            }
+            
+            const newPos = positions[nextIndex];
+            camera.position.set(newPos.x, newPos.y, newPos.z);
+            camera.lookAt(0, 0, 0);
+        }
+        
+        function exportParkingMap() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(
+                JSON.stringify({
+                    mapData: parkingData,
+                    fileName: fileName
+                })
+            );
+            const downloadAnchor = document.createElement("a");
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", fileName + ".json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importParkingMap() {
+            document.getElementById('fileInput').click();
+        }
+
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file || file.type !== "application/json") return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+                    if (jsonData.mapData && Array.isArray(jsonData.mapData)) {
+                        fileName = jsonData.fileName || "imported_parking_map";
+                        parkingData = jsonData.mapData;
+                        
+                        let maxId = 0;
+                        parkingData.forEach(row => {
+                            row.forEach(cell => {
+                                if (cell && cell.type === 'parking' && cell.id > maxId) {
+                                    maxId = cell.id;
+                                }
+                            });
+                        });
+                        parkingCounter = maxId + 1;
+                        
+                        draw2D();
+                        update3D();
+                        syncDataToUI();
+                    }
+                } catch (error) {
+                    console.error("Ошибка загрузки файла:", error);
+                }
+                event.target.value = "";
+            };
+            reader.readAsText(file);
+        });
+
+        // Инициализация при загрузке страницы
+        window.onload = function() {
+            init2D();
+            init3D();
+            connectWebSocket();
+            loadInitialMap();
+        };
+    </script>
+</body>
+</html>
