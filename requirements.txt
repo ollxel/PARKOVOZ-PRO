@@ -1,0 +1,5 @@
+opencv-python>=4.5.4
+numpy>=1.19.5
+requests>=2.26.0
+websockets>=10.0
+ultralytics>=8.0.0
