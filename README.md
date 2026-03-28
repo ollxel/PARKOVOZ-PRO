@@ -47,12 +47,28 @@ cp RealParking/backend/yolov12x.pt ToyParking/backend/
 
 Backend:
 ```bash
-python3 main.py --url rtsp://your_camera_ip --device gpu
+python3 main.py --url rtsp://your_camera_ip --device auto
 ```
 
 Frontend:
 ```bash
 python3 -m http.server  # port - 8000
+```
+
+Note: port `9000` is a WebSocket endpoint (`ws://localhost:9000`), not a regular HTTP page.
+
+HTML camera pages are supported (Yawcam, webcam7/webcamXP): you can pass a page URL, and the script will auto-detect the direct `jpg` endpoint.
+
+Examples:
+```bash
+# Yawcam page URL (auto-detects out.jpg)
+python3 main.py --url http://206.169.218.170:8081/ --device auto --size 320
+
+# webcam7 page URL, choose Source 4
+python3 main.py --url http://camera-host:8080/ --webcam-source 4 --device auto --size 320
+
+# YouTube Live URL (requires yt-dlp and ffmpeg)
+python3 main.py --url "https://www.youtube.com/watch?v=LIVE_ID" --device auto --size 320
 ```
 
 ### Launch Parameters
@@ -61,8 +77,10 @@ python3 -m http.server  # port - 8000
 |----------|-------------|---------|
 | `--url` | Video stream URL | Required |
 | `--model` | Path to the model | `yolov12x.pt` |
-| `--device` | Device (`cpu` / `gpu`) | `gpu` |
+| `--device` | Device (`auto` / `cpu` / `gpu` / `mps`) | `auto` |
 | `--ws-port` | WebSocket port | `9000` |
+| `--webcam-source` | Source id for webcam7/webcamXP pages | auto |
+| `--youtube-format` | yt-dlp format selector (YouTube Live) | `best[protocol*=m3u8]/best` |
 
 ### Hotkeys
 

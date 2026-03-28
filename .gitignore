@@ -1,0 +1,5 @@
+yolo12x.pt
+.DS_Store
+venv/
+output/
+parking_spots.txt
