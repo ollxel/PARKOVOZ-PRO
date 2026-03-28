@@ -7,23 +7,15 @@
 
 **PARKOVOZ-PRO** is a comprehensive solution for automatic parking space monitoring using neural networks. The system analyzes a video stream in real time, detects free/occupied parking spots, and provides a convenient web interface for data visualization.
 
-## Technology Stack
+## Architecture
 
-```mermaid
-graph LR
-    A[Backend] --> B(Python)
-    A --> C(OpenCV)
-    A --> D(Ultralytics YOLOv8)
-    A --> E(WebSockets)
-    
-    F[Frontend] --> G(JavaScript)
-    F --> H(Three.js)
-    
-    I[Neural Network] --> J(YOLOv12x)
-    
-    K[Infrastructure] --> L(RTSP/HTTP streams)
-    K --> M(WebSocket)
-```
+PARKOVOZ-PRO consists of three main components:
+
+- **Backend (Python + OpenCV + YOLO)** — processes video streams and detects vehicles
+- **Frontend (JavaScript + Three.js)** — visualizes parking occupancy in real time
+- **Communication Layer (WebSocket)** — transfers detection results from backend to frontend
+
+The backend receives RTSP/HTTP camera streams, runs YOLO inference, determines parking occupancy, and sends updates to the frontend interface.
 
 ## Installation and Launch
 
