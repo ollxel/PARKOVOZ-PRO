@@ -85,11 +85,21 @@ if device == 'cpu' and os.path.exists(args.model):
             "Для Mac M1 попробуйте --device mps и/или --size 320."
         )
 
-with open("coco.names", "r") as f:
-    classes = [line.strip() for line in f.readlines()]
+if isinstance(model.names, dict):
+    classes = [name for _, name in sorted(model.names.items(), key=lambda item: item[0])]
+else:
+    classes = list(model.names)
 
-VEHICLE_CLASSES = ["car", "motorbike", "bus", "truck"]
-VEHICLE_IDS = [classes.index(cls) for cls in VEHICLE_CLASSES if cls in classes]
+if not classes and os.path.exists("coco.names"):
+    with open("coco.names", "r") as f:
+        classes = [line.strip() for line in f.readlines()]
+
+vehicle_name_aliases = {"car", "motorbike", "motorcycle", "bus", "truck"}
+VEHICLE_IDS = [idx for idx, name in enumerate(classes) if str(name).lower() in vehicle_name_aliases]
+
+if not VEHICLE_IDS:
+    logging.warning("Не удалось определить IDs транспортных классов, использую fallback [2,3,5,7]")
+    VEHICLE_IDS = [2, 3, 5, 7]
 
 is_recording = False
 video_writer = None
@@ -700,11 +710,24 @@ def process_stream():
             total_vehicles += vehicle_count
 
             occupied_spots = [False] * len(parking_spots)
-            
-            for i, (x, y, _) in enumerate(parking_spots):
-                for center in centers:
-                    distance = np.sqrt((x - center[0])**2 + (y - center[1])**2)
-                    if distance < 30:
+
+            for i, (spot_x, spot_y, _) in enumerate(parking_spots):
+                for box, center in zip(boxes, centers):
+                    box_x, box_y, box_w, box_h = box
+                    pad_x = int(box_w * 0.15)
+                    pad_y = int(box_h * 0.20)
+
+                    inside_box = (
+                        (box_x - pad_x) <= spot_x <= (box_x + box_w + pad_x)
+                        and (box_y - pad_y) <= spot_y <= (box_y + box_h + pad_y)
+                    )
+                    if inside_box:
+                        occupied_spots[i] = True
+                        break
+
+                    adaptive_radius = max(35, int(min(box_w, box_h) * 0.35))
+                    distance = np.sqrt((spot_x - center[0]) ** 2 + (spot_y - center[1]) ** 2)
+                    if distance <= adaptive_radius:
                         occupied_spots[i] = True
                         break
 
@@ -732,7 +755,9 @@ def process_stream():
                     (x, y, w, h) = box
                     cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
                     
-                    label = f"{classes[class_ids[i]]}: {confidences[i]:.2f}"
+                    class_id = class_ids[i]
+                    class_name = classes[class_id] if 0 <= class_id < len(classes) else f"id_{class_id}"
+                    label = f"{class_name}: {confidences[i]:.2f}"
                     cv2.putText(frame, label, (x, y - 5),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
