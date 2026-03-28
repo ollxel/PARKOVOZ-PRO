@@ -1,5 +1,6 @@
 # PARKOVOZ-PRO  - Система мониторинга парковок  
 
+[English README](README.md) | [Russian README](README_RU.md)
 ![](screenshot.jpg)
 *Интерактивная демонстрация работы системы*
 
