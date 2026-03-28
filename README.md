@@ -1,21 +1,11 @@
-# PARKOVOZ-PRO 🚗💨 - Система мониторинга парковок  
+# PARKOVOZ-PRO  - Система мониторинга парковок  
 
-[![Demo Preview](https://demo.gif)](https://github.com/ollxel/PARKOVOZ-PRO)  
+![](screenshot.jpg)
 *Интерактивная демонстрация работы системы*
 
 **PARKOVOZ-PRO** - комплексное решение для автоматического мониторинга парковочных мест с использованием нейросетей. Система анализирует видеопоток в реальном времени, определяет свободные/занятые места и предоставляет удобный веб-интерфейс для визуализации данных.
 
-## ✨ Ключевые возможности
-
-| Функционал | Описание |
-|------------|----------|
-| 🚗 **Детекция авто** | Распознавание автомобилей через YOLOv12x |
-| 🗺️ **Интерактивная карта** | Визуализация занятости мест в 2D/3D |
-| 🛠️ **Редактор парковки** | Конструктор схем с сохранением конфигураций |
-| ⚡ **Real-time мониторинг** | Передача данных через WebSocket |
-| 📊 **Аналитика** | Статистика занятости и история изменений |
-
-## 🛠 Технологический стек
+## Технологический стек
 
 ```mermaid
 graph LR
@@ -33,7 +23,7 @@ graph LR
     K --> M(WebSocket)
 ```
 
-## ⚙️ Установка и запуск
+## Установка и запуск
 
 ### Требования
 - Python 3.7+
@@ -44,13 +34,13 @@ graph LR
 
 1. Клонируйте репозиторий:
 ```bash
-git clone https://github.com/ollxel/PARKOVOZ-PRO.git
+git clone https://github.com/ollxel/PARKOVOZ-PRO
 cd PARKOVOZ-PRO
 ```
 
 2. Установите зависимости:
 ```bash
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
 3. Загрузите модель YOLOv12x:
@@ -60,12 +50,14 @@ cp RealParking/backend/yolov12x.pt ToyParking/backend/
 ```
 
 ### Запуск системы
+Backend:
 ```bash
-# Для реальной парковки
-start_real1.bat --url rtsp://your_camera_ip --device gpu
+python3 main.py--url rtsp://your_camera_ip --device gpu
+```
 
-# Для тестовой среды
-start_toy.bat --url http://test_feed.jpg --device cpu
+Frontend:
+```bash
+python3 -m http.server #port - 8000
 ```
 
 ### Параметры запуска
@@ -76,12 +68,6 @@ start_toy.bat --url http://test_feed.jpg --device cpu
 | `--device` | Устройство (`cpu`/`gpu`) | `gpu` |
 | `--ws-port` | WebSocket порт | `9000` |
 
-## 🖥 Использование системы
-
-### Веб-интерфейс
-Откройте в браузере:
-- `index.html` - мониторинг и редактор парковки
-![Интерфейс мониторинга](interface-preview.jpg)
 
 ### Горячие клавиши
 | Комбинация | Действие |
@@ -92,10 +78,7 @@ start_toy.bat --url http://test_feed.jpg --device cpu
 | `P` | Режим разметки |
 | `Q` | Выход из системы |
 
-## 📄 Лицензия
+## Лицензия
 Проект распространяется под лицензией **GPLv3**.  
 Полный текст доступен в файле https://github.com/ollxel/PARKOVOZ-PRO/blob/main/LICENSE
 
----
-**PARKOVOZ-PRO** © 2025 - Интеллектуальная система мониторинга парковок  
-[Документация](https://docs.example.com) | [Примеры конфигураций](configs/) | [Сообщить об ошибке](issues/new)
