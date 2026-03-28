@@ -2,7 +2,7 @@
 
 [English README](README.md) | [Russian README](README_RU.md)
 
-![](screenshot.jpeg)
+![](screenshot.jpg)
 *Interactive demonstration of the system*
 
 **PARKOVOZ-PRO** is a comprehensive solution for automatic parking space monitoring using neural networks. The system analyzes a video stream in real time, detects free/occupied parking spots, and provides a convenient web interface for data visualization.
